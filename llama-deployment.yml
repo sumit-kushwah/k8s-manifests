@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: llama-server
+  template:
+    metadata:
+      labels:
+        app: llama-server
+        ai.gke.io/model: LLaMA3_8B_Chat
+        ai.gke.io/inference-server: vllm
+        examples.ai.gke.io/source: model-garden
+    spec:
+      containers:
+      - name: inference-server
+        image: us-docker.pkg.dev/vertex-ai/vertex-vision-model-garden-dockers/pytorch-vllm-serve:20240508_0916_RC02
+        resources:
+          requests:
+            cpu: 5
+            memory: 20Gi
+            ephemeral-storage: 80Gi
+            nvidia.com/gpu : 1
+          limits:
+            cpu: 5
+            memory: 20Gi
+            ephemeral-storage: 80Gi
+            nvidia.com/gpu : 1
+        args:
+        - python
+        - -m
+        - vllm.entrypoints.api_server
+        - --host=0.0.0.0
+        - --port=7080
+        - --model=gs://vertex-model-garden-public-us/llama3/llama3-8b-chat-hf
+        - --tensor-parallel-size=1
+        - --swap-space=8
+        - --gpu-memory-utilization=0.9
+        - --max-model-len=8192
+        - --disable-log-stats
+        env:
+        - name: DEPLOY_SOURCE
+          value: UI_NATIVE_MODEL
+        - name: MODEL_ID
+          value: "Llama3-8B-chat-001"
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-l4
